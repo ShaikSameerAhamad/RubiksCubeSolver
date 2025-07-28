@@ -154,19 +154,19 @@ async def solve_cube_endpoint(cube_state: CubeState):
         raise HTTPException(status_code=500, detail=f"Error solving cube: {str(e)}")
 
 @app.get("/scramble", response_model=ScrambleResponse)
-async def generate_scramble_endpoint(moves: Optional[int] = 20):
+async def generate_scramble_endpoint(moves: Optional[int] = 25):
     """
     Generate a random scramble sequence
     
     Args:
-        moves: Number of moves in the scramble (default: 20)
+        moves: Number of moves in the scramble (default: 25)
     
     Returns:
         Random scramble sequence and resulting cube state
     """
     try:
-        if moves < 1 or moves > 50:
-            raise HTTPException(status_code=400, detail="Number of moves must be between 1 and 50")
+        if moves < 15 or moves > 50:
+            raise HTTPException(status_code=400, detail="Number of moves must be between 15 and 50")
         
         scramble, scrambled_state = generate_scramble(moves)
         
