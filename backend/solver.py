@@ -18,7 +18,7 @@ class SolverError(Exception):
     """Custom exception for solver-related errors"""
     pass
 
-def solve_cube(cube_state: str, max_depth: int = 24, timeout: int = 10) -> str:
+def solve_cube(cube_state: str, max_depth: int = 24, timeout: int = 30) -> str:
     """
     Solve a Rubik's cube using Kociemba's Two-Phase Algorithm
     
@@ -32,7 +32,7 @@ def solve_cube(cube_state: str, max_depth: int = 24, timeout: int = 10) -> str:
                    - Positions 36-44: Left face (L)
                    - Positions 45-53: Back face (B)
         max_depth: Maximum number of moves to search (default: 24)
-        timeout: Maximum time in seconds to spend solving (default: 10)
+        timeout: Maximum time in seconds to spend solving (default: 30)
     
     Returns:
         String containing the solution move sequence

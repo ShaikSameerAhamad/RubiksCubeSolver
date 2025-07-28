@@ -4,12 +4,20 @@ from pydantic import BaseModel, Field
 import time
 import json
 import os
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict
 
 from solver import solve_cube
 from validator import validate_cube_state, CubeValidationError
-from cube_utils import convert_to_kociemba_format, generate_scramble
+from cube_utils import convert_to_kociemba_format, generate_scramble, is_valid_cube_state
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 app = FastAPI(
     title="Rubik's Cube Solver API",
@@ -98,6 +106,31 @@ async def health_check():
         version="1.0.0"
     )
 
+@app.get("/scramble", response_model=ScrambleResponse)
+async def get_scramble(moves: int = 20):
+    """Generate a random scramble sequence"""
+    if moves < 1 or moves > 100:
+        raise HTTPException(status_code=400, detail="Number of moves must be between 1 and 100")
+    
+    try:
+        scramble, state = generate_scramble(moves)
+        logging.debug(f"Generated scramble with {moves} moves: {scramble}")
+        
+        # Verify that we got a valid state
+        if not state or len(state) != 54:
+            raise ValueError(f"Invalid state length: {len(state)}")
+            
+        return ScrambleResponse(
+            scramble=scramble,
+            scrambled_state=state
+        )
+    except Exception as e:
+        print(f"Scramble generation error: {str(e)}")  # Debug log
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
 @app.post("/solve", response_model=SolveResponse)
 async def solve_cube_endpoint(cube_state: CubeState):
     """
@@ -112,41 +145,53 @@ async def solve_cube_endpoint(cube_state: CubeState):
     """
     try:
         start_time = time.time()
+        logging.info(f"Received solve request for state: {cube_state.state[:20]}...")
         
         # Validate the cube state
-        validate_cube_state(cube_state.state)
+        try:
+            validate_cube_state(cube_state.state)
+        except CubeValidationError as e:
+            logging.error(f"Cube validation failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Invalid cube state: {str(e)}")
         
-        # Convert to Kociemba format if needed
-        kociemba_state = convert_to_kociemba_format(cube_state.state)
-        
-        # Solve the cube
-        solution = solve_cube(kociemba_state)
-        
-        execution_time = time.time() - start_time
-        move_count = len(solution.split()) if solution else 0
-        timestamp = datetime.now().isoformat()
-        
-        # Prepare response
-        response = SolveResponse(
-            solution=solution,
-            move_count=move_count,
-            execution_time=round(execution_time, 4),
-            original_state=cube_state.state,
-            timestamp=timestamp
-        )
-        
-        # Save solution if requested
-        if cube_state.save_solution:
-            solution_data = {
-                "original_state": cube_state.state,
-                "solution": solution,
-                "move_count": move_count,
-                "execution_time": execution_time,
-                "timestamp": timestamp
-            }
-            save_solution_to_file(solution_data)
-        
-        return response
+        try:
+            # Convert to Kociemba format if needed
+            kociemba_state = convert_to_kociemba_format(cube_state.state)
+            logging.info(f"Starting solve with Kociemba state: {kociemba_state[:20]}...")
+            
+            # Solve the cube with increased timeout
+            solution = solve_cube(kociemba_state, timeout=30)
+            
+            execution_time = time.time() - start_time
+            move_count = len(solution.split()) if solution else 0
+            timestamp = datetime.now().isoformat()
+            
+            # Prepare response
+            response = SolveResponse(
+                solution=solution,
+                move_count=move_count,
+                execution_time=round(execution_time, 4),
+                original_state=cube_state.state,
+                timestamp=timestamp
+            )
+            
+            # Save solution if requested
+            if cube_state.save_solution:
+                solution_data = {
+                    "original_state": cube_state.state,
+                    "solution": solution,
+                    "move_count": move_count,
+                    "execution_time": execution_time,
+                    "timestamp": timestamp
+                }
+                save_solution_to_file(solution_data)
+            
+            logging.info(f"Cube solved successfully in {execution_time:.2f}s with {move_count} moves")
+            return response
+            
+        except Exception as e:
+            logging.error(f"Error solving cube: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error solving cube: {str(e)}")
         
     except CubeValidationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid cube state: {str(e)}")

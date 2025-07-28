@@ -9,10 +9,17 @@ interface CubeInterfaceProps {
 
 export function CubeInterface({ cubeState, onStateChange }: CubeInterfaceProps) {
   const updateSticker = (faceIndex: number, stickerIndex: number, color: string) => {
+    if (!cubeState || cubeState.length !== 54) {
+      console.error('Invalid cube state');
+      return;
+    }
     const globalIndex = faceIndex * 9 + stickerIndex
     const newState = cubeState.split("")
     newState[globalIndex] = color
-    onStateChange(newState.join(""))
+    const updatedState = newState.join("")
+    if (updatedState.length === 54) {
+      onStateChange(updatedState)
+    }
   }
 
   // Extract face states from the 54-character string

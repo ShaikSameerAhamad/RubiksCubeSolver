@@ -8,77 +8,79 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, RotateCcw, Zap } from "lucide-react"
 // CORRECTED IMPORT: Added getScramble
-import { solveCube, getScramble } from "@/lib/api"
+import { solveCube, scrambleCube } from "@/lib/api"
 import { generateScrambledState } from "@/lib/cube-utils"
 
 export default function RubiksCubeSolver() {
-  const [cubeState, setCubeState] = useState<string>("UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB")
+  const SOLVED_STATE = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
+  const [cubeState, setCubeState] = useState<string>(SOLVED_STATE)
   const [moves, setMoves] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [solveTime, setSolveTime] = useState<number | null>(null)
-  const [isScrambled, setIsScrambled] = useState(false)
 
   // Check if cube is in solved state
-  const isSolved = (state: string) => {
-    const solvedState = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
-    return state === solvedState
-  }
+  const isSolved = (state: string) => state === SOLVED_STATE
+
+  // Check if cube is scrambled (not solved)
+  const isScrambled = !isSolved(cubeState);
 
   // Handle manual cube state changes
   const handleCubeStateChange = (newState: string) => {
+    if (isLoading) return;
     setCubeState(newState)
-    // Enable solve button if cube is not in solved state
-    setIsScrambled(!isSolved(newState))
-    // Clear previous solution when cube state changes
     setMoves([])
     setError(null)
     setSolveTime(null)
   }
 
   const handleScramble = async () => {
-    setIsLoading(true)
-    setError(null)
-    setMoves([])
-    setSolveTime(null)
-
-    const result = await getScramble(); 
-    if (result.success) {
-      setCubeState(result.data.scrambled_state);
-      setIsScrambled(true); // Mark as scrambled so solve button can be enabled
-    } else {
-      setError(result.error || "Failed to fetch scramble from API.");
+    if (isLoading) return;
+    setIsLoading(true);
+    setError(null);
+    setMoves([]);
+    setSolveTime(null);
+    try {
+      // Use getScramble from API
+      const response = await scrambleCube();
+      if (!response || !response.success || !response.data || !response.data.state) {
+        throw new Error("Invalid response from server");
+      }
+      setCubeState(response.data.state);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to fetch scramble from API.");
     }
-    setIsLoading(false)
+    setIsLoading(false);
   }
 
   const handleSolve = async () => {
-    setIsLoading(true)
-    setError(null)
-    setSolveTime(null)
-
-    const startTime = Date.now()
-    const result = await solveCube(cubeState)
-    const endTime = Date.now()
-
-    if (result.success) {
-      // The backend returns a 'solution' key, not 'moves'
-      const solution = result.data.solution || ""
-      setMoves(solution ? solution.split(' ') : [])
-      setSolveTime(endTime - startTime)
-      setIsScrambled(false) // Reset scrambled state after solving
-    } else {
-      setError(result.error || "Failed to solve cube")
+    if (isLoading || isSolved(cubeState)) return;
+    setIsLoading(true);
+    setError(null);
+    setSolveTime(null);
+    try {
+      const startTime = Date.now();
+      const result = await solveCube(cubeState);
+      const endTime = Date.now();
+      if (!result || !result.success || !result.data) {
+        throw new Error("Invalid response from server");
+      }
+      const solution = result.data.solution || "";
+      setMoves(solution ? solution.split(' ') : []);
+      setSolveTime(endTime - startTime);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to solve cube");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false)
   }
 
   const handleReset = () => {
-    setCubeState("UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB")
-    setMoves([])
-    setError(null)
-    setSolveTime(null)
-    setIsScrambled(false) // Reset scrambled state
+    if (isLoading) return;
+    setCubeState(SOLVED_STATE);
+    setMoves([]);
+    setError(null);
+    setSolveTime(null);
   }
 
   return (
@@ -107,13 +109,13 @@ export default function RubiksCubeSolver() {
               <CubeInterface cubeState={cubeState} onStateChange={handleCubeStateChange} />
 
               <div className="flex gap-2 mt-6">
-                <Button onClick={handleScramble} variant="outline" className="flex-1 bg-transparent" disabled={isLoading}>
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Scramble
-                </Button>
-                <Button onClick={handleReset} variant="outline" className="flex-1 bg-transparent">
-                  Reset
-                </Button>
+              <Button onClick={handleScramble} variant="outline" className="flex-1 bg-transparent" disabled={isLoading}>
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Scramble
+              </Button>
+              <Button onClick={handleReset} variant="outline" className="flex-1 bg-transparent" disabled={isLoading || isSolved(cubeState)}>
+                Reset
+              </Button>
               </div>
             </CardContent>
           </Card>
@@ -132,7 +134,7 @@ export default function RubiksCubeSolver() {
             <CardContent>
               <Button 
                 onClick={handleSolve} 
-                disabled={isLoading || !isScrambled} 
+                disabled={isLoading || isSolved(cubeState)} 
                 className="w-full mb-4" 
                 size="lg"
               >
@@ -182,7 +184,7 @@ export default function RubiksCubeSolver() {
         <Card className="mt-8">
           <CardContent className="pt-6">
             <div className="text-center text-sm text-gray-500">
-              <p>Backend API: {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}</p>
+              <p>Backend API: {process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}</p>
               <p className="mt-1">Make sure your FastAPI backend is running and accessible at the configured URL.</p>
             </div>
           </CardContent>

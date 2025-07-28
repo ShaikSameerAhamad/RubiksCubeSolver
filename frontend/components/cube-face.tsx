@@ -25,7 +25,7 @@ export function CubeFace({ name, colors, onStickerClick }: CubeFaceProps) {
   const [selectedSticker, setSelectedSticker] = useState<number | null>(null)
 
   const handleColorSelect = (color: string) => {
-    if (selectedSticker !== null) {
+    if (selectedSticker !== null && colors && colors.length === 9) {
       onStickerClick(selectedSticker, color)
       setSelectedSticker(null)
     }
