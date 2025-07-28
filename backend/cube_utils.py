@@ -121,22 +121,55 @@ def apply_move(cube_state: str, move: str) -> str:
 
 # --- UNTOUCHED ORIGINAL FUNCTIONS (that now use the new apply_move) ---
 
-def generate_scramble(num_moves: int = 20) -> Tuple[str, str]:
+def generate_scramble(num_moves: int = 25) -> Tuple[str, str]:
     """
     Generate a random scramble sequence and resulting cube state.
+    Uses WCA-style scramble generation to avoid consecutive moves of the same face
+    or opposite faces, ensuring realistic scramble patterns.
     """
-    if not 1 <= num_moves <= 100:
-        raise ValueError("Number of moves must be between 1 and 100")
+    if not 15 <= num_moves <= 100:
+        raise ValueError("Number of moves must be between 15 and 100")
+    
     scramble_moves = []
     last_face = None
+    second_last_face = None
+    
     for _ in range(num_moves):
-        while True:
+        attempts = 0
+        while attempts < 50:  # Prevent infinite loops
             move = random.choice(ALL_MOVES)
             current_face = move[0]
-            if current_face != last_face and MOVE_OPPOSITES.get(current_face) != last_face:
-                scramble_moves.append(move)
-                last_face = current_face
-                break
+            
+            # Avoid consecutive moves on the same face
+            if current_face == last_face:
+                attempts += 1
+                continue
+                
+            # Avoid moves on opposite faces consecutively (more realistic)
+            if last_face and MOVE_OPPOSITES.get(current_face) == last_face:
+                attempts += 1
+                continue
+                
+            # Avoid three consecutive moves involving the same two opposite faces
+            if (second_last_face and last_face and 
+                ((current_face == second_last_face and MOVE_OPPOSITES.get(last_face) == second_last_face) or
+                 (MOVE_OPPOSITES.get(current_face) == second_last_face and last_face == MOVE_OPPOSITES.get(second_last_face)))):
+                attempts += 1
+                continue
+            
+            # Valid move found
+            scramble_moves.append(move)
+            second_last_face = last_face
+            last_face = current_face
+            break
+            
+        else:
+            # Fallback if we can't find a valid move (shouldn't happen with good logic)
+            move = random.choice([m for m in ALL_MOVES if m[0] != last_face])
+            scramble_moves.append(move)
+            second_last_face = last_face
+            last_face = move[0]
+    
     scramble_sequence = ' '.join(scramble_moves)
     scrambled_state = apply_move_sequence(SOLVED_CUBE, scramble_sequence)
     return scramble_sequence, scrambled_state

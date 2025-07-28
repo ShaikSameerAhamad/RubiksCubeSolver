@@ -59,5 +59,5 @@ export async function solveCube(cubeState: string) {
  * Calls the backend to get a random scramble.
  */
 export async function getScramble() {
-  return apiFetch('/scramble?moves=20');
+  return apiFetch('/scramble?moves=25');
 }

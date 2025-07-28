@@ -17,6 +17,24 @@ export default function RubiksCubeSolver() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [solveTime, setSolveTime] = useState<number | null>(null)
+  const [isScrambled, setIsScrambled] = useState(false)
+
+  // Check if cube is in solved state
+  const isSolved = (state: string) => {
+    const solvedState = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
+    return state === solvedState
+  }
+
+  // Handle manual cube state changes
+  const handleCubeStateChange = (newState: string) => {
+    setCubeState(newState)
+    // Enable solve button if cube is not in solved state
+    setIsScrambled(!isSolved(newState))
+    // Clear previous solution when cube state changes
+    setMoves([])
+    setError(null)
+    setSolveTime(null)
+  }
 
   const handleScramble = async () => {
     setIsLoading(true)
@@ -27,6 +45,7 @@ export default function RubiksCubeSolver() {
     const result = await getScramble(); 
     if (result.success) {
       setCubeState(result.data.scrambled_state);
+      setIsScrambled(true); // Mark as scrambled so solve button can be enabled
     } else {
       setError(result.error || "Failed to fetch scramble from API.");
     }
@@ -47,6 +66,7 @@ export default function RubiksCubeSolver() {
       const solution = result.data.solution || ""
       setMoves(solution ? solution.split(' ') : [])
       setSolveTime(endTime - startTime)
+      setIsScrambled(false) // Reset scrambled state after solving
     } else {
       setError(result.error || "Failed to solve cube")
     }
@@ -58,6 +78,7 @@ export default function RubiksCubeSolver() {
     setMoves([])
     setError(null)
     setSolveTime(null)
+    setIsScrambled(false) // Reset scrambled state
   }
 
   return (
@@ -83,7 +104,7 @@ export default function RubiksCubeSolver() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CubeInterface cubeState={cubeState} onStateChange={setCubeState} />
+              <CubeInterface cubeState={cubeState} onStateChange={handleCubeStateChange} />
 
               <div className="flex gap-2 mt-6">
                 <Button onClick={handleScramble} variant="outline" className="flex-1 bg-transparent" disabled={isLoading}>
@@ -109,7 +130,12 @@ export default function RubiksCubeSolver() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={handleSolve} disabled={isLoading} className="w-full mb-4" size="lg">
+              <Button 
+                onClick={handleSolve} 
+                disabled={isLoading || !isScrambled} 
+                className="w-full mb-4" 
+                size="lg"
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -122,6 +148,12 @@ export default function RubiksCubeSolver() {
                   </>
                 )}
               </Button>
+
+              {!isScrambled && !isLoading && (
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">💡 Click "Scramble" to generate a scrambled cube, then you can solve it!</p>
+                </div>
+              )}
 
               {error && (
                 <Alert variant="destructive" className="mb-4">

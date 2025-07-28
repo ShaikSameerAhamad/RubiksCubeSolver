@@ -81,6 +81,10 @@ def solve_cube(cube_state: str, max_depth: int = 24, timeout: int = 10) -> str:
         # Clean up the solution string
         solution = solution.strip()
         
+        # Optimize the solution to remove redundant moves
+        if solution:
+            solution = optimize_solution(solution)
+        
         # Log solution info
         move_count = len(solution.split()) if solution else 0
         logger.info(f"Cube solved in {solve_time:.3f}s with {move_count} moves: {solution}")
