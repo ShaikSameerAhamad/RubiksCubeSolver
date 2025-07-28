@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, RotateCcw, Zap } from "lucide-react"
-import { solveCube } from "@/lib/api"
+// CORRECTED IMPORT: Added getScramble
+import { solveCube, getScramble } from "@/lib/api"
 import { generateScrambledState } from "@/lib/cube-utils"
 
 export default function RubiksCubeSolver() {
@@ -17,12 +18,19 @@ export default function RubiksCubeSolver() {
   const [error, setError] = useState<string | null>(null)
   const [solveTime, setSolveTime] = useState<number | null>(null)
 
-  const handleScramble = () => {
-    const scrambledState = generateScrambledState()
-    setCubeState(scrambledState)
-    setMoves([])
+  const handleScramble = async () => {
+    setIsLoading(true)
     setError(null)
+    setMoves([])
     setSolveTime(null)
+
+    const result = await getScramble(); 
+    if (result.success) {
+      setCubeState(result.data.scrambled_state);
+    } else {
+      setError(result.error || "Failed to fetch scramble from API.");
+    }
+    setIsLoading(false)
   }
 
   const handleSolve = async () => {
@@ -30,22 +38,19 @@ export default function RubiksCubeSolver() {
     setError(null)
     setSolveTime(null)
 
-    try {
-      const startTime = Date.now()
-      const result = await solveCube(cubeState)
-      const endTime = Date.now()
+    const startTime = Date.now()
+    const result = await solveCube(cubeState)
+    const endTime = Date.now()
 
-      if (result.success) {
-        setMoves(result.moves || [])
-        setSolveTime(endTime - startTime)
-      } else {
-        setError(result.error || "Failed to solve cube")
-      }
-    } catch (err) {
-      setError("Failed to connect to solver API. Make sure your backend is running.")
-    } finally {
-      setIsLoading(false)
+    if (result.success) {
+      // The backend returns a 'solution' key, not 'moves'
+      const solution = result.data.solution || ""
+      setMoves(solution ? solution.split(' ') : [])
+      setSolveTime(endTime - startTime)
+    } else {
+      setError(result.error || "Failed to solve cube")
     }
+    setIsLoading(false)
   }
 
   const handleReset = () => {
@@ -81,7 +86,7 @@ export default function RubiksCubeSolver() {
               <CubeInterface cubeState={cubeState} onStateChange={setCubeState} />
 
               <div className="flex gap-2 mt-6">
-                <Button onClick={handleScramble} variant="outline" className="flex-1 bg-transparent">
+                <Button onClick={handleScramble} variant="outline" className="flex-1 bg-transparent" disabled={isLoading}>
                   <RotateCcw className="w-4 h-4 mr-2" />
                   Scramble
                 </Button>
@@ -119,14 +124,20 @@ export default function RubiksCubeSolver() {
               </Button>
 
               {error && (
-                <Alert className="mb-4 border-red-200 bg-red-50">
-                  <AlertDescription className="text-red-700">{error}</AlertDescription>
+                <Alert variant="destructive" className="mb-4">
+                  <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              {solveTime && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-700">✅ Solved in {solveTime}ms</p>
+              {solveTime !== null && moves.length > 0 && !error && (
+                <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                  <p className="text-sm text-green-700 dark:text-green-300">✅ Solved in {solveTime}ms with {moves.length} moves.</p>
+                </div>
+              )}
+              
+              {solveTime !== null && moves.length === 0 && !error && (
+                 <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">Cube is already solved!</p>
                 </div>
               )}
 
@@ -139,8 +150,8 @@ export default function RubiksCubeSolver() {
         <Card className="mt-8">
           <CardContent className="pt-6">
             <div className="text-center text-sm text-gray-500">
-              <p>Backend API: {process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}</p>
-              <p className="mt-1">Make sure your Flask backend is running and accessible at the configured URL.</p>
+              <p>Backend API: {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}</p>
+              <p className="mt-1">Make sure your FastAPI backend is running and accessible at the configured URL.</p>
             </div>
           </CardContent>
         </Card>
